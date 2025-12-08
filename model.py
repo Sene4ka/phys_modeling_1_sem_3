@@ -10,11 +10,11 @@ def solve_schrodinger_well(U, x_range, N=2000, hbar = 1.0, mass = 1.0):
     x_inner = x[1:-1]
     n = len(x_inner)
     if n < 2:
-        raise ValueError("Слишком мало внутренних точек")
+        raise ValueError()
 
     U_values = np.asarray(U(x_inner), dtype=float)
     if np.any(np.isinf(U_values)):
-        raise ValueError("Бесконечная стенка внутри области — нельзя решать")
+        raise ValueError()
 
     kcoef = hbar ** 2 / (2.0 * mass * dx ** 2)  # = 1/(2 dx²)
 
@@ -177,29 +177,19 @@ def transmission_coefficient_matrix(U, x_range, E, N=4000, mass=1.0, hbar=1.0, m
     x = np.linspace(x0, x1, N + 1)
     dx = x[1] - x[0]
 
-    # Берём значение потенциала в центре каждого сегмента
     xm = 0.5 * (x[:-1] + x[1:])
     Uvals = np.asarray(U(xm), dtype=float)
 
-    # Волновое число в сегменте k = sqrt(2m(E - U)) / ħ (комплексное разрешено)
     k = np.sqrt(2.0 * mass * (E - Uvals).astype(complex)) / hbar
 
-    # Волновые числа вне барьера (предполагаем U=0)
     k_left = np.sqrt(2.0 * mass * E) / hbar
     k_right = k_left
 
-    # Начальная трансфер-матрица — единичная
     M = np.eye(2, dtype=complex)
 
-    # --- Матрица распространения по сегменту ---
     def P(kj, dx):
-        """
-        Матрица распространения по одному сегменту длины dx.
-        Psi(x + dx) = P_j * Psi(x)
-        Содержит exp(+ik dx) и exp(-ik dx).
-        """
         arg = 1j * kj * dx
-        # Ограничиваем мнимую часть аргумента (экспонента растёт экспоненциально)
+
         im = np.imag(arg)
         if abs(im) > max_exp_arg:
             arg = np.real(arg) + 1j * np.sign(im) * max_exp_arg
@@ -208,12 +198,7 @@ def transmission_coefficient_matrix(U, x_range, E, N=4000, mass=1.0, hbar=1.0, m
             [0.0,            np.exp(-arg)]
         ], dtype=complex)
 
-    # --- Матрица перехода между сегментами c k_j -> k_{j+1} ---
     def I(kj, knext):
-        """
-        Матрица стыка между двумя областями с разными k.
-        Следует из непрерывности ψ и ψ'.
-        """
         eps = 1e-16
         kn = knext if abs(knext) > eps else (knext + eps)
         denom = 2.0 * kn
@@ -223,32 +208,25 @@ def transmission_coefficient_matrix(U, x_range, E, N=4000, mass=1.0, hbar=1.0, m
             [(kn - kj) / denom, (kn + kj) / denom]
         ], dtype=complex)
 
-    # --- Накопление полной матрицы ---
     for j in range(len(k)):
         Pj = P(k[j], dx)
         if j < len(k) - 1:
             M = I(k[j], k[j + 1]) @ Pj @ M
         else:
-            # На последнем сегменте нет интерфейсной матрицы
             M = Pj @ M
 
-    # Из M получаем амплитуды отражения и прохождения
     M11, M12 = M[0, 0], M[0, 1]
     M21, M22 = M[1, 0], M[1, 1]
 
-    # Амплитуда отражения r (B_left)
     if abs(M22) < 1e-20:
         r = -M21 / (M22 + 1e-20)
     else:
         r = -M21 / M22
 
-    # Амплитуда проходящей волны
     A_right = M11 + M12 * r
 
-    # Коэффициент прохождения
     T = np.abs(A_right)**2 * (np.real(k_right) / np.real(k_left))
 
-    # Ограничим до диапазона [0, 1]
     if not np.isfinite(T):
         return 0.0
     return float(np.clip(T, 0.0, 1.0))
@@ -279,10 +257,10 @@ def plot_potential_and_wavefunctions(U, x_range, num_states=6, title=None):
     for i in range(num_states):
         # Волновая функция
         profile = psi[:, i] / np.max(np.abs(psi[:, i])) * psi_scale + energies[i]
-        plt.plot(x, profile, color=colors[i], linewidth=1.5, label=f'E{i}={energies[i]:.4f} Ha')
+        plt.plot(x, profile, color=colors[i], linewidth=1.5, label=f'E{i}={energies[i]:.4f} Ha({(energies[i]*27.2114):.4f} eV)')
         plt.axhline(energies[i], color=colors[i], linestyle='--', alpha=0.5)
 
-    plt.xlabel('x (a0)')
+    plt.xlabel('x (a.u.)')
     plt.ylabel('Энергия (Ha)')
     plt.title(title or 'Потенциал и собственные состояния')
     plt.legend(loc='upper right')
@@ -342,12 +320,12 @@ def plot_infinite_well(a, num_states=6):
         psi_norm = psi[:, i] / np.max(np.abs(psi[:, i]))
         profile = psi_norm * psi_scale + energies[i]
         plt.plot(x, profile, color=colors[i], linewidth=1.5,
-                 label=f'E{i}={energies[i]:.4f} Ha')
+                 label=f'E{i}={energies[i]:.4f} Ha({(energies[i]*27.2114):.4f} eV)')
         plt.axhline(energies[i], color=colors[i], linestyle='--', alpha=0.3)
 
-    plt.xlabel('x (a0)')
+    plt.xlabel('x (a.u.)')
     plt.ylabel('Энергия (Ha)')
-    plt.title(f'Бесконечная прямоугольная яма (ширина={a:.1f} a0)')
+    plt.title(f'Бесконечная прямоугольная яма (ширина={a:.1f} a.u.)')
     plt.legend(loc='upper right')
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -373,7 +351,7 @@ def plot_barrier_potentials(barriers, a=200.0, names=None, N=5000):
     for i, (barrier_func, name, color) in enumerate(zip(barriers, names, colors)):
         plt.plot(x, barrier_func(x), color=color, linewidth=2, label=name)
 
-    plt.xlabel('x (a0)')
+    plt.xlabel('x (a.u.)')
     plt.ylabel('Потенциал U(x) (Ha)')
     plt.title('Сравнение форм потенциальных барьеров')
     plt.legend(loc='upper right')
@@ -439,33 +417,35 @@ if __name__ == "__main__":
     # Параметры в атомных единицах
     a = 10.0  # 10 a0 ≈ 0.529 нм
 
+    dp = 5
+
     # 1. Бесконечная прямоугольная яма
     plot_infinite_well(a)
 
     # 2. Конечная прямоугольная яма
     plot_potential_and_wavefunctions(
-        rectangular_well(a, depth=5),
+        rectangular_well(a, depth=dp),
         (-a / 4, a * 1.25),
         title="Конечная прямоугольная яма"
     )
 
     # 3. Треугольная яма
     plot_potential_and_wavefunctions(
-        triangular_well(a, depth=5),
+        triangular_well(a, depth=dp),
         (-a / 4, a * 1.25),
         title="Треугольная яма"
     )
 
     # 4. W-образная яма
     plot_potential_and_wavefunctions(
-        w_well(a, depth=5, sigma=1),
+        w_well(a, depth=dp, sigma=1),
         (-a / 4, a * 1.25),
         title="W-образная яма"
     )
 
     # 5. Параболическая яма
     plot_potential_and_wavefunctions(
-        harmonic_well(a, depth=5),
+        harmonic_well(a, depth=dp),
         (-a / 4, a * 1.25),
         title="Параболическая яма"
     )
