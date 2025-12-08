@@ -770,7 +770,7 @@ def gaussian_barrier(a, height=1.0, sigma=5.0):
     return U
 
 
-def create_3segment_grid_for_rectangular_barrier(a_barrier, barrier_width, padding=50.0):
+def create_3segment_grid_for_rectangular_barrier(a_barrier, barrier_width):
     """
     Создает минимальную сетку (3 сегмента) для прямоугольного барьера.
 
